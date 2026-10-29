@@ -20,16 +20,9 @@ public class JournalEntriesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Post(PostJournalEntryRequest request, CancellationToken ct)
     {
-        try
-        {
-            var entry = await _ledger.PostAsync(
-                request.EntryDate, request.Description, request.Lines, ct: ct);
+        var entry = await _ledger.PostAsync(
+            request.EntryDate, request.Description, request.Lines, ct: ct);
 
-            return Created($"/api/journal-entries/{entry.Id}", new { entry.Id });
-        }
-        catch (LedgerException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        return Created($"/api/journal-entries/{entry.Id}", new { entry.Id });
     }
 }

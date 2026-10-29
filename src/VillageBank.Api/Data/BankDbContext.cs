@@ -10,6 +10,9 @@ public class BankDbContext : DbContext
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<JournalLine> JournalLines => Set<JournalLine>();
+    public DbSet<Member> Members => Set<Member>();
+    public DbSet<SavingsAccount> SavingsAccounts => Set<SavingsAccount>();
+    public DbSet<SavingsTransaction> SavingsTransactions => Set<SavingsTransaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -60,6 +63,54 @@ public class BankDbContext : DbContext
             e.ToTable(t => t.HasCheckConstraint(
                 "ck_journal_lines_one_sided",
                 "debit >= 0 AND credit >= 0 AND ((debit > 0 AND credit = 0) OR (credit > 0 AND debit = 0))"));
+        });
+
+        modelBuilder.Entity<Member>(e =>
+        {
+            e.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Phone).HasMaxLength(30);
+            e.Property(x => x.Village).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<SavingsAccount>(e =>
+        {
+            e.Property(x => x.Balance).HasPrecision(19, 4);
+
+            e.HasOne(x => x.Member)
+                .WithOne(x => x.SavingsAccount)
+                .HasForeignKey<SavingsAccount>(x => x.MemberId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.ToTable(t => t.HasCheckConstraint(
+                "ck_savings_accounts_balance_non_negative",
+                "balance >= 0"));
+        });
+
+        modelBuilder.Entity<SavingsTransaction>(e =>
+        {
+            e.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Amount).HasPrecision(19, 4);
+            e.Property(x => x.BalanceAfter).HasPrecision(19, 4);
+            e.Property(x => x.IdempotencyKey).HasMaxLength(100);
+            e.Property(x => x.Note).HasMaxLength(500);
+
+            e.HasOne(x => x.SavingsAccount)
+                .WithMany()
+                .HasForeignKey(x => x.SavingsAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.JournalEntry)
+                .WithMany()
+                .HasForeignKey(x => x.JournalEntryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(x => new { x.SavingsAccountId, x.IdempotencyKey }).IsUnique();
+
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_savings_transactions_amount_positive", "amount > 0");
+                t.HasCheckConstraint("ck_savings_transactions_type", "type IN ('Deposit','Withdrawal')");
+            });
         });
     }
 }

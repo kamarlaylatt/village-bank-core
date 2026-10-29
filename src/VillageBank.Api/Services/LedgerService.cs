@@ -21,6 +21,20 @@ public class LedgerService : ILedgerService
         long? sourceId = null,
         CancellationToken ct = default)
     {
+        var entry = await StageAsync(entryDate, description, lines, sourceType, sourceId, ct);
+        await _db.SaveChangesAsync(ct);
+
+        return entry;
+    }
+
+    public async Task<JournalEntry> StageAsync(
+        DateOnly entryDate,
+        string description,
+        IReadOnlyList<LineInput> lines,
+        string? sourceType = null,
+        long? sourceId = null,
+        CancellationToken ct = default)
+    {
         JournalEntryValidator.Validate(description, lines);
 
         var accountIds = lines.Select(l => l.AccountId).Distinct().ToList();
@@ -46,7 +60,6 @@ public class LedgerService : ILedgerService
         };
 
         _db.JournalEntries.Add(entry);
-        await _db.SaveChangesAsync(ct);
 
         return entry;
     }

@@ -17,7 +17,7 @@ namespace VillageBank.Api.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.33")
+                .HasAnnotation("ProductVersion", "8.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -207,6 +207,153 @@ namespace VillageBank.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("VillageBank.Api.Domain.Member", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("full_name");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<DateOnly>("JoinedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("joined_on");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("Village")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("village");
+
+                    b.HasKey("Id")
+                        .HasName("pk_members");
+
+                    b.ToTable("members", (string)null);
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.SavingsAccount", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Balance")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("balance");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<long>("MemberId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("member_id");
+
+                    b.Property<DateTime>("OpenedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("opened_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_savings_accounts");
+
+                    b.HasIndex("MemberId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_savings_accounts_member_id");
+
+                    b.ToTable("savings_accounts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_savings_accounts_balance_non_negative", "balance >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.SavingsTransaction", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<decimal>("BalanceAfter")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("balance_after");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<long>("JournalEntryId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("journal_entry_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<long>("SavingsAccountId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("savings_account_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_savings_transactions");
+
+                    b.HasIndex("JournalEntryId")
+                        .HasDatabaseName("ix_savings_transactions_journal_entry_id");
+
+                    b.HasIndex("SavingsAccountId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_savings_transactions_savings_account_id_idempotency_key");
+
+                    b.ToTable("savings_transactions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_savings_transactions_amount_positive", "amount > 0");
+
+                            t.HasCheckConstraint("ck_savings_transactions_type", "type IN ('Deposit','Withdrawal')");
+                        });
+                });
+
             modelBuilder.Entity("VillageBank.Api.Domain.JournalLine", b =>
                 {
                     b.HasOne("VillageBank.Api.Domain.Account", "Account")
@@ -228,9 +375,47 @@ namespace VillageBank.Api.Data.Migrations
                     b.Navigation("JournalEntry");
                 });
 
+            modelBuilder.Entity("VillageBank.Api.Domain.SavingsAccount", b =>
+                {
+                    b.HasOne("VillageBank.Api.Domain.Member", "Member")
+                        .WithOne("SavingsAccount")
+                        .HasForeignKey("VillageBank.Api.Domain.SavingsAccount", "MemberId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_savings_accounts_members_member_id");
+
+                    b.Navigation("Member");
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.SavingsTransaction", b =>
+                {
+                    b.HasOne("VillageBank.Api.Domain.JournalEntry", "JournalEntry")
+                        .WithMany()
+                        .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_savings_transactions_journal_entries_journal_entry_id");
+
+                    b.HasOne("VillageBank.Api.Domain.SavingsAccount", "SavingsAccount")
+                        .WithMany()
+                        .HasForeignKey("SavingsAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_savings_transactions_savings_accounts_savings_account_id");
+
+                    b.Navigation("JournalEntry");
+
+                    b.Navigation("SavingsAccount");
+                });
+
             modelBuilder.Entity("VillageBank.Api.Domain.JournalEntry", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.Member", b =>
+                {
+                    b.Navigation("SavingsAccount");
                 });
 #pragma warning restore 612, 618
         }
