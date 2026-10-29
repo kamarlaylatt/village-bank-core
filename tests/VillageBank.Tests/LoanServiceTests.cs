@@ -94,7 +94,7 @@ public class LoanServiceTests
     }
 
     [Fact]
-    public async Task Disbursement_creates_the_schedule_and_posts_a_ledger_entry()
+    public async Task Disbursement_creates_the_schedule_and_credits_the_members_savings()
     {
         var loanId = await ActiveLoanAsync();
 
@@ -111,7 +111,84 @@ public class LoanServiceTests
 
         Assert.Equal(2, lines.Count);
         Assert.Equal(300_000m, lines.Single(l => l.Account.Code == AccountCodes.LoansReceivable).Debit);
-        Assert.Equal(300_000m, lines.Single(l => l.Account.Code == AccountCodes.Cash).Credit);
+        Assert.Equal(300_000m, lines.Single(l => l.Account.Code == AccountCodes.MemberSavings).Credit);
+        Assert.DoesNotContain(lines, l => l.Account.Code == AccountCodes.Cash);
+
+        // The savings account and its statement show the money.
+        var account = await db.SavingsAccounts.AsNoTracking().SingleAsync(a => a.MemberId == loan.MemberId);
+        Assert.Equal(300_000m, account.Balance);
+
+        var transaction = await db.SavingsTransactions.AsNoTracking().SingleAsync(t => t.SavingsAccountId == account.Id);
+        Assert.Equal(SavingsTransactionType.Deposit, transaction.Type);
+        Assert.Equal(300_000m, transaction.Amount);
+        Assert.Equal(300_000m, transaction.BalanceAfter);
+        Assert.Equal(entryId, transaction.JournalEntryId);
+    }
+
+    [Fact]
+    public async Task Disbursement_fails_and_changes_nothing_when_the_savings_account_is_inactive()
+    {
+        var teller = await CreateUserAsync(UserRole.Teller);
+        var manager = await CreateUserAsync(UserRole.Manager);
+        var memberId = await CreateMemberAsync();
+
+        var loan = await AsAsync(teller, s => s.ApplyAsync(Terms(memberId)));
+        await AsAsync(manager, s => s.ApproveAsync(loan.Id));
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            await db.SavingsAccounts
+                .Where(a => a.MemberId == memberId)
+                .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsActive, false));
+        }
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => AsAsync(teller, s => s.DisburseAsync(loan.Id)));
+
+        var after = await AsAsync(null, s => s.GetAsync(loan.Id));
+        Assert.Equal(LoanStatus.Approved, after.Status);
+        Assert.Empty(after.Installments);
+    }
+
+    [Fact]
+    public async Task Loan_details_name_the_staff_who_applied_approved_and_disbursed()
+    {
+        var teller = await CreateUserAsync(UserRole.Teller);
+        var manager = await CreateUserAsync(UserRole.Manager);
+        var memberId = await CreateMemberAsync();
+
+        var applied = await AsAsync(teller, s => s.ApplyAsync(Terms(memberId)));
+        Assert.Equal(await UsernameAsync(teller), applied.AppliedBy);
+        Assert.Null(applied.DecidedBy);
+        Assert.Null(applied.DisbursedBy);
+
+        var approved = await AsAsync(manager, s => s.ApproveAsync(applied.Id));
+        Assert.Equal(await UsernameAsync(manager), approved.DecidedBy);
+        Assert.Null(approved.DisbursedBy);
+
+        var disbursed = await AsAsync(teller, s => s.DisburseAsync(applied.Id));
+        Assert.Equal(await UsernameAsync(teller), disbursed.DisbursedBy);
+        Assert.Equal(await UsernameAsync(teller), disbursed.AppliedBy);
+        Assert.Equal(await UsernameAsync(manager), disbursed.DecidedBy);
+    }
+
+    [Fact]
+    public async Task A_rejected_loan_names_who_rejected_it()
+    {
+        var teller = await CreateUserAsync(UserRole.Teller);
+        var manager = await CreateUserAsync(UserRole.Manager);
+        var memberId = await CreateMemberAsync();
+
+        var applied = await AsAsync(teller, s => s.ApplyAsync(Terms(memberId)));
+        var rejected = await AsAsync(manager, s => s.RejectAsync(applied.Id, "Not enough savings"));
+
+        Assert.Equal(LoanStatus.Rejected, rejected.Status);
+        Assert.Equal(await UsernameAsync(manager), rejected.DecidedBy);
+    }
+
+    private async Task<string> UsernameAsync(long userId)
+    {
+        await using var db = _fixture.CreateDbContext();
+        return (await db.Users.AsNoTracking().SingleAsync(u => u.Id == userId)).Username;
     }
 
     [Fact]
@@ -257,7 +334,10 @@ public class LoanServiceTests
         await using var db = _fixture.CreateDbContext();
         var user = new TestCurrentUser { UserId = userId };
 
-        return await action(new LoanService(db, new LedgerService(db, user), TimeProvider.System, user));
+        var ledger = new LedgerService(db, user);
+        var savings = new SavingsService(db, ledger, TimeProvider.System, user);
+
+        return await action(new LoanService(db, ledger, savings, TimeProvider.System, user));
     }
 
     private async Task<long> ActiveLoanAsync()

@@ -50,7 +50,10 @@ public record LoanDetails(
     decimal Outstanding,
     decimal OverdueAmount,
     int DaysPastDue,
-    IReadOnlyList<InstallmentDetails> Installments);
+    IReadOnlyList<InstallmentDetails> Installments,
+    string? AppliedBy,
+    string? DecidedBy,
+    string? DisbursedBy);
 
 public record LoanSummary(
     long Id,

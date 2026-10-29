@@ -60,6 +60,63 @@ public class SavingsService : ISavingsService
             .ToList();
     }
 
+    public async Task<SavingsTransaction> StageLoanProceedsAsync(
+        long memberId, decimal amount, DateOnly entryDate, string description, CancellationToken ct = default)
+    {
+        ValidateAmount(amount);
+
+        var accountId = await _db.SavingsAccounts
+            .Where(a => a.MemberId == memberId)
+            .Select(a => (long?)a.Id)
+            .SingleOrDefaultAsync(ct)
+            ?? throw new BusinessRuleException("The member has no savings account to receive the loan.");
+
+        // Same row lock as ApplyAsync. It is held until the caller's transaction commits.
+        var account = (await _db.SavingsAccounts
+                .FromSqlInterpolated($"SELECT * FROM savings_accounts WHERE id = {accountId} FOR UPDATE")
+                .ToListAsync(ct))
+            .Single();
+
+        if (!account.IsActive)
+            throw new BusinessRuleException("Savings account is not active.");
+
+        account.Balance += amount;
+
+        var codes = new[] { AccountCodes.LoansReceivable, AccountCodes.MemberSavings };
+        var ledgerAccounts = await _db.Accounts
+            .Where(a => codes.Contains(a.Code))
+            .ToDictionaryAsync(a => a.Code, a => a.Id, ct);
+
+        if (ledgerAccounts.Count != codes.Length)
+            throw new LedgerException("Required ledger accounts are missing from the chart of accounts.");
+
+        // Dr Loans Receivable / Cr Member Savings: the member owes the loan and holds the money in savings.
+        var entry = await _ledger.StageAsync(
+            entryDate,
+            description,
+            new[]
+            {
+                new LineInput(ledgerAccounts[AccountCodes.LoansReceivable], amount, 0m),
+                new LineInput(ledgerAccounts[AccountCodes.MemberSavings], 0m, amount)
+            },
+            ct: ct);
+
+        var transaction = new SavingsTransaction
+        {
+            SavingsAccountId = account.Id,
+            Type = SavingsTransactionType.Deposit,
+            Amount = amount,
+            BalanceAfter = account.Balance,
+            Note = description,
+            JournalEntry = entry,
+            CreatedByUserId = _currentUser.UserId,
+            CreatedAt = _clock.GetUtcNow().UtcDateTime
+        };
+
+        _db.SavingsTransactions.Add(transaction);
+        return transaction;
+    }
+
     private async Task<SavingsTransactionResult> ApplyAsync(
         long accountId,
         SavingsTransactionType type,

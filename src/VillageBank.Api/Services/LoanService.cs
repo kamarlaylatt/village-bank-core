@@ -14,13 +14,16 @@ public class LoanService : ILoanService
 
     private readonly BankDbContext _db;
     private readonly ILedgerService _ledger;
+    private readonly ISavingsService _savings;
     private readonly TimeProvider _clock;
     private readonly ICurrentUser _currentUser;
 
-    public LoanService(BankDbContext db, ILedgerService ledger, TimeProvider clock, ICurrentUser currentUser)
+    public LoanService(
+        BankDbContext db, ILedgerService ledger, ISavingsService savings, TimeProvider clock, ICurrentUser currentUser)
     {
         _db = db;
         _ledger = ledger;
+        _savings = savings;
         _clock = clock;
         _currentUser = currentUser;
     }
@@ -100,7 +103,19 @@ public class LoanService : ILoanService
             .SingleOrDefaultAsync(l => l.Id == id, ct)
             ?? throw new NotFoundException($"Loan {id} was not found.");
 
-        return ToDetails(loan, BusinessTime.Today(_clock));
+        // The loan stores only user ids; the UI shows who acted, so resolve them to usernames.
+        var userIds = new[] { loan.AppliedByUserId, loan.DecidedByUserId, loan.DisbursedByUserId }
+            .Where(userId => userId.HasValue)
+            .Select(userId => userId!.Value)
+            .Distinct()
+            .ToList();
+
+        var userNames = await _db.Users
+            .AsNoTracking()
+            .Where(u => userIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.Username, ct);
+
+        return ToDetails(loan, BusinessTime.Today(_clock), userNames);
     }
 
     public async Task<PagedResult<LoanSummary>> ListAsync(
@@ -189,23 +204,15 @@ public class LoanService : ILoanService
             var schedule = LoanScheduleCalculator.Calculate(
                 loan.Principal, loan.MonthlyInterestRatePercent, loan.TermMonths, today);
 
-            var accounts = await GetLedgerAccountIdsAsync(ct, AccountCodes.LoansReceivable, AccountCodes.Cash);
-
-            // Dr Loans Receivable / Cr Cash: the money leaves the till and becomes a claim on the member.
-            var entry = await _ledger.StageAsync(
-                today,
-                $"Loan disbursement - loan {id}",
-                new[]
-                {
-                    new LineInput(accounts[AccountCodes.LoansReceivable], loan.Principal, 0m),
-                    new LineInput(accounts[AccountCodes.Cash], 0m, loan.Principal)
-                },
-                ct: ct);
+            // Dr Loans Receivable / Cr Member Savings: the principal goes straight into the member's
+            // savings account. It is only staged, so it commits together with the loan in one SaveChanges.
+            var proceeds = await _savings.StageLoanProceedsAsync(
+                loan.MemberId, loan.Principal, today, $"Loan disbursement - loan {id}", ct);
 
             loan.Status = LoanStatus.Active;
             loan.DisbursedOn = today;
             loan.DisbursedByUserId = _currentUser.UserId;
-            loan.DisbursementJournalEntry = entry;
+            loan.DisbursementJournalEntry = proceeds.JournalEntry;
 
             foreach (var item in schedule)
             {
@@ -383,8 +390,11 @@ public class LoanService : ILoanService
     private static RepaymentResult ToResult(LoanRepayment r, LoanStatus status, decimal outstanding, bool replayed) =>
         new(r.Id, r.LoanId, r.Amount, r.PrincipalPart, r.InterestPart, outstanding, status, r.JournalEntryId, r.CreatedAt, replayed);
 
-    private static LoanDetails ToDetails(Loan loan, DateOnly today)
+    private static LoanDetails ToDetails(Loan loan, DateOnly today, IReadOnlyDictionary<long, string> userNames)
     {
+        string? NameOf(long? userId) =>
+            userId is { } uid && userNames.TryGetValue(uid, out var name) ? name : null;
+
         var installments = loan.Installments.OrderBy(i => i.Number).ToList();
 
         var totalInterest = installments.Count > 0
@@ -415,6 +425,9 @@ public class LoanService : ILoanService
             installments
                 .Select(i => new InstallmentDetails(
                     i.Number, i.DueDate, i.PrincipalDue, i.InterestDue, i.PrincipalPaid, i.InterestPaid, i.IsPaid))
-                .ToList());
+                .ToList(),
+            NameOf(loan.AppliedByUserId),
+            NameOf(loan.DecidedByUserId),
+            NameOf(loan.DisbursedByUserId));
     }
 }
