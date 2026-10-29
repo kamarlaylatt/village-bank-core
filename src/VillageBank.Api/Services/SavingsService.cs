@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VillageBank.Api.Auth;
 using VillageBank.Api.Contracts;
 using VillageBank.Api.Data;
 using VillageBank.Api.Domain;
@@ -12,12 +13,14 @@ public class SavingsService : ISavingsService
     private readonly BankDbContext _db;
     private readonly ILedgerService _ledger;
     private readonly TimeProvider _clock;
+    private readonly ICurrentUser _currentUser;
 
-    public SavingsService(BankDbContext db, ILedgerService ledger, TimeProvider clock)
+    public SavingsService(BankDbContext db, ILedgerService ledger, TimeProvider clock, ICurrentUser currentUser)
     {
         _db = db;
         _ledger = ledger;
         _clock = clock;
+        _currentUser = currentUser;
     }
 
     public async Task<SavingsAccountSummary> GetAccountAsync(long accountId, CancellationToken ct = default)
@@ -128,6 +131,7 @@ public class SavingsService : ISavingsService
             IdempotencyKey = idempotencyKey,
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
             JournalEntry = entry,
+            CreatedByUserId = _currentUser.UserId,
             CreatedAt = _clock.GetUtcNow().UtcDateTime
         };
 

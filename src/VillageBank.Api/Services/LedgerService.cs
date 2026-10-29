@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VillageBank.Api.Auth;
 using VillageBank.Api.Data;
 using VillageBank.Api.Domain;
 
@@ -7,10 +8,12 @@ namespace VillageBank.Api.Services;
 public class LedgerService : ILedgerService
 {
     private readonly BankDbContext _db;
+    private readonly ICurrentUser _currentUser;
 
-    public LedgerService(BankDbContext db)
+    public LedgerService(BankDbContext db, ICurrentUser currentUser)
     {
         _db = db;
+        _currentUser = currentUser;
     }
 
     public async Task<JournalEntry> PostAsync(
@@ -50,6 +53,7 @@ public class LedgerService : ILedgerService
             Description = description.Trim(),
             SourceType = sourceType,
             SourceId = sourceId,
+            CreatedByUserId = _currentUser.UserId,
             CreatedAt = DateTime.UtcNow,
             Lines = lines.Select(l => new JournalLine
             {

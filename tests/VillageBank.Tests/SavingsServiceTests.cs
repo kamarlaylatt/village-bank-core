@@ -207,5 +207,5 @@ public class SavingsServiceTests
     }
 
     private static SavingsService CreateSavings(BankDbContext db) =>
-        new(db, new LedgerService(db), TimeProvider.System);
+        new(db, new LedgerService(db, TestCurrentUser.Anonymous), TimeProvider.System, TestCurrentUser.Anonymous);
 }

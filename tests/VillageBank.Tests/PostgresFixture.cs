@@ -6,9 +6,14 @@ namespace VillageBank.Tests;
 
 public class PostgresFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
-        .WithImage("postgres:16")
-        .Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16").Build();
+
+    private ApiFactory? _api;
+
+    public string ConnectionString => _container.GetConnectionString();
+
+    // Created lazily so tests that only need the database do not start the web host.
+    public ApiFactory Api => _api ??= new ApiFactory(ConnectionString);
 
     public async Task InitializeAsync()
     {
@@ -18,12 +23,16 @@ public class PostgresFixture : IAsyncLifetime
         await db.Database.EnsureCreatedAsync();
     }
 
-    public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+    public async Task DisposeAsync()
+    {
+        _api?.Dispose();
+        await _container.DisposeAsync();
+    }
 
     public BankDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<BankDbContext>()
-            .UseNpgsql(_container.GetConnectionString())
+            .UseNpgsql(ConnectionString)
             .UseSnakeCaseNamingConvention()
             .Options;
 

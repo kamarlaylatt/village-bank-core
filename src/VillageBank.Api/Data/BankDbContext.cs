@@ -13,6 +13,7 @@ public class BankDbContext : DbContext
     public DbSet<Member> Members => Set<Member>();
     public DbSet<SavingsAccount> SavingsAccounts => Set<SavingsAccount>();
     public DbSet<SavingsTransaction> SavingsTransactions => Set<SavingsTransaction>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +42,11 @@ public class BankDbContext : DbContext
             e.Property(x => x.Description).HasMaxLength(500).IsRequired();
             e.Property(x => x.SourceType).HasMaxLength(30);
             e.HasIndex(x => new { x.SourceType, x.SourceId });
+
+            e.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<JournalLine>(e =>
@@ -104,6 +110,11 @@ public class BankDbContext : DbContext
                 .HasForeignKey(x => x.JournalEntryId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            e.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             e.HasIndex(x => new { x.SavingsAccountId, x.IdempotencyKey }).IsUnique();
 
             e.ToTable(t =>
@@ -111,6 +122,23 @@ public class BankDbContext : DbContext
                 t.HasCheckConstraint("ck_savings_transactions_amount_positive", "amount > 0");
                 t.HasCheckConstraint("ck_savings_transactions_type", "type IN ('Deposit','Withdrawal')");
             });
+        });
+
+        modelBuilder.Entity<User>(e =>
+        {
+            e.Property(x => x.Username).HasMaxLength(50).IsRequired();
+            e.HasIndex(x => x.Username).IsUnique();
+            e.Property(x => x.PasswordHash).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Role).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.ToTable(t => t.HasCheckConstraint(
+                "ck_users_role",
+                "role IN ('SuperAdmin','Manager','Teller','Auditor')"));
         });
     }
 }

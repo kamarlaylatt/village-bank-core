@@ -137,6 +137,10 @@ namespace VillageBank.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<long?>("CreatedByUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by_user_id");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -158,6 +162,9 @@ namespace VillageBank.Api.Data.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_journal_entries");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_journal_entries_created_by_user_id");
 
                     b.HasIndex("SourceType", "SourceId")
                         .HasDatabaseName("ix_journal_entries_source_type_source_id");
@@ -312,6 +319,10 @@ namespace VillageBank.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<long?>("CreatedByUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by_user_id");
+
                     b.Property<string>("IdempotencyKey")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -339,6 +350,9 @@ namespace VillageBank.Api.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_savings_transactions");
 
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_savings_transactions_created_by_user_id");
+
                     b.HasIndex("JournalEntryId")
                         .HasDatabaseName("ix_savings_transactions_journal_entry_id");
 
@@ -352,6 +366,78 @@ namespace VillageBank.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_savings_transactions_type", "type IN ('Deposit','Withdrawal')");
                         });
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.User", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedByUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_login_at");
+
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("boolean")
+                        .HasColumnName("must_change_password");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("password_hash");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("role");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("username");
+
+                    b.HasKey("Id")
+                        .HasName("pk_users");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_users_created_by_user_id");
+
+                    b.HasIndex("Username")
+                        .IsUnique()
+                        .HasDatabaseName("ix_users_username");
+
+                    b.ToTable("users", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_users_role", "role IN ('SuperAdmin','Manager','Teller','Auditor')");
+                        });
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.JournalEntry", b =>
+                {
+                    b.HasOne("VillageBank.Api.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_journal_entries_users_created_by_user_id");
                 });
 
             modelBuilder.Entity("VillageBank.Api.Domain.JournalLine", b =>
@@ -389,6 +475,12 @@ namespace VillageBank.Api.Data.Migrations
 
             modelBuilder.Entity("VillageBank.Api.Domain.SavingsTransaction", b =>
                 {
+                    b.HasOne("VillageBank.Api.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_savings_transactions_users_created_by_user_id");
+
                     b.HasOne("VillageBank.Api.Domain.JournalEntry", "JournalEntry")
                         .WithMany()
                         .HasForeignKey("JournalEntryId")
@@ -406,6 +498,15 @@ namespace VillageBank.Api.Data.Migrations
                     b.Navigation("JournalEntry");
 
                     b.Navigation("SavingsAccount");
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.User", b =>
+                {
+                    b.HasOne("VillageBank.Api.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_users_users_created_by_user_id");
                 });
 
             modelBuilder.Entity("VillageBank.Api.Domain.JournalEntry", b =>

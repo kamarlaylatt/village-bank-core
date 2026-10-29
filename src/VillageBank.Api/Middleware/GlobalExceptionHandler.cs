@@ -18,6 +18,7 @@ public class GlobalExceptionHandler : IExceptionHandler
     {
         var (status, title) = exception switch
         {
+            UnauthorizedException => (StatusCodes.Status401Unauthorized, "Authentication failed"),
             NotFoundException => (StatusCodes.Status404NotFound, "Resource not found"),
             BusinessRuleException => (StatusCodes.Status400BadRequest, "Business rule violated"),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred")

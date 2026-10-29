@@ -16,5 +16,6 @@ public class SavingsTransaction
     public long JournalEntryId { get; set; }
     public JournalEntry JournalEntry { get; set; } = null!;
 
+    public long? CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
 }

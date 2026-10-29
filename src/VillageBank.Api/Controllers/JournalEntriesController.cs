@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using VillageBank.Api.Auth;
 using VillageBank.Api.Domain;
 using VillageBank.Api.Services;
 
@@ -8,6 +10,7 @@ public record PostJournalEntryRequest(DateOnly EntryDate, string Description, Li
 
 [ApiController]
 [Route("api/journal-entries")]
+[Authorize(Roles = Roles.Manager)]
 public class JournalEntriesController : ControllerBase
 {
     private readonly ILedgerService _ledger;

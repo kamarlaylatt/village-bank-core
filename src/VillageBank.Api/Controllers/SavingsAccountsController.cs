@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using VillageBank.Api.Auth;
 using VillageBank.Api.Contracts;
 using VillageBank.Api.Services;
 
@@ -6,6 +8,7 @@ namespace VillageBank.Api.Controllers;
 
 [ApiController]
 [Route("api/savings-accounts")]
+[Authorize(Roles = Roles.Staff)]
 public class SavingsAccountsController : ControllerBase
 {
     private readonly ISavingsService _savings;
@@ -29,6 +32,7 @@ public class SavingsAccountsController : ControllerBase
     }
 
     [HttpPost("{id:long}/deposits")]
+    [Authorize(Roles = Roles.Operators)]
     public async Task<IActionResult> Deposit(
         long id,
         MoneyRequest request,
@@ -40,6 +44,7 @@ public class SavingsAccountsController : ControllerBase
     }
 
     [HttpPost("{id:long}/withdrawals")]
+    [Authorize(Roles = Roles.Operators)]
     public async Task<IActionResult> Withdraw(
         long id,
         MoneyRequest request,

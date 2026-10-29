@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using VillageBank.Api.Auth;
 using VillageBank.Api.Contracts;
 using VillageBank.Api.Services;
 
@@ -6,6 +8,7 @@ namespace VillageBank.Api.Controllers;
 
 [ApiController]
 [Route("api/members")]
+[Authorize(Roles = Roles.Staff)]
 public class MembersController : ControllerBase
 {
     private readonly IMemberService _members;
@@ -16,6 +19,7 @@ public class MembersController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = Roles.Operators)]
     public async Task<IActionResult> Create(CreateMemberRequest request, CancellationToken ct)
     {
         var member = await _members.CreateAsync(request, ct);
