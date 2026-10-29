@@ -214,6 +214,236 @@ namespace VillageBank.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("VillageBank.Api.Domain.Loan", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("AppliedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("applied_at");
+
+                    b.Property<long?>("AppliedByUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("applied_by_user_id");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<long?>("DecidedByUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("decided_by_user_id");
+
+                    b.Property<long?>("DisbursedByUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("disbursed_by_user_id");
+
+                    b.Property<DateOnly?>("DisbursedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("disbursed_on");
+
+                    b.Property<long?>("DisbursementJournalEntryId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("disbursement_journal_entry_id");
+
+                    b.Property<long>("MemberId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("member_id");
+
+                    b.Property<decimal>("MonthlyInterestRatePercent")
+                        .HasPrecision(7, 4)
+                        .HasColumnType("numeric(7,4)")
+                        .HasColumnName("monthly_interest_rate_percent");
+
+                    b.Property<decimal>("Principal")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("principal");
+
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("purpose");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<int>("TermMonths")
+                        .HasColumnType("integer")
+                        .HasColumnName("term_months");
+
+                    b.HasKey("Id")
+                        .HasName("pk_loans");
+
+                    b.HasIndex("AppliedByUserId")
+                        .HasDatabaseName("ix_loans_applied_by_user_id");
+
+                    b.HasIndex("DecidedByUserId")
+                        .HasDatabaseName("ix_loans_decided_by_user_id");
+
+                    b.HasIndex("DisbursedByUserId")
+                        .HasDatabaseName("ix_loans_disbursed_by_user_id");
+
+                    b.HasIndex("DisbursementJournalEntryId")
+                        .HasDatabaseName("ix_loans_disbursement_journal_entry_id");
+
+                    b.HasIndex("MemberId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_loans_member_id")
+                        .HasFilter("status NOT IN ('Rejected','Closed')");
+
+                    b.ToTable("loans", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_loans_status", "status IN ('Pending','Approved','Rejected','Active','Closed')");
+
+                            t.HasCheckConstraint("ck_loans_terms", "principal > 0 AND term_months BETWEEN 1 AND 60 AND monthly_interest_rate_percent >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.LoanInstallment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<decimal>("InterestDue")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("interest_due");
+
+                    b.Property<decimal>("InterestPaid")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("interest_paid");
+
+                    b.Property<long>("LoanId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("loan_id");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<decimal>("PrincipalDue")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("principal_due");
+
+                    b.Property<decimal>("PrincipalPaid")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("principal_paid");
+
+                    b.HasKey("Id")
+                        .HasName("pk_loan_installments");
+
+                    b.HasIndex("LoanId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_loan_installments_loan_id_number");
+
+                    b.ToTable("loan_installments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_loan_installments_amounts", "principal_due >= 0 AND interest_due >= 0 AND principal_paid >= 0 AND interest_paid >= 0 AND principal_paid <= principal_due AND interest_paid <= interest_due");
+                        });
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.LoanRepayment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedByUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<decimal>("InterestPart")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("interest_part");
+
+                    b.Property<long>("JournalEntryId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("journal_entry_id");
+
+                    b.Property<long>("LoanId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("loan_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<DateOnly>("PaidOn")
+                        .HasColumnType("date")
+                        .HasColumnName("paid_on");
+
+                    b.Property<decimal>("PrincipalPart")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("principal_part");
+
+                    b.HasKey("Id")
+                        .HasName("pk_loan_repayments");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_loan_repayments_created_by_user_id");
+
+                    b.HasIndex("JournalEntryId")
+                        .HasDatabaseName("ix_loan_repayments_journal_entry_id");
+
+                    b.HasIndex("LoanId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_loan_repayments_loan_id_idempotency_key");
+
+                    b.ToTable("loan_repayments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_loan_repayments_amounts", "amount > 0 AND principal_part >= 0 AND interest_part >= 0 AND principal_part + interest_part = amount");
+                        });
+                });
+
             modelBuilder.Entity("VillageBank.Api.Domain.Member", b =>
                 {
                     b.Property<long>("Id")
@@ -461,6 +691,83 @@ namespace VillageBank.Api.Data.Migrations
                     b.Navigation("JournalEntry");
                 });
 
+            modelBuilder.Entity("VillageBank.Api.Domain.Loan", b =>
+                {
+                    b.HasOne("VillageBank.Api.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("AppliedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_loans_users_applied_by_user_id");
+
+                    b.HasOne("VillageBank.Api.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_loans_users_decided_by_user_id");
+
+                    b.HasOne("VillageBank.Api.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("DisbursedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_loans_users_disbursed_by_user_id");
+
+                    b.HasOne("VillageBank.Api.Domain.JournalEntry", "DisbursementJournalEntry")
+                        .WithMany()
+                        .HasForeignKey("DisbursementJournalEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_loans_journal_entries_disbursement_journal_entry_id");
+
+                    b.HasOne("VillageBank.Api.Domain.Member", "Member")
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_loans_members_member_id");
+
+                    b.Navigation("DisbursementJournalEntry");
+
+                    b.Navigation("Member");
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.LoanInstallment", b =>
+                {
+                    b.HasOne("VillageBank.Api.Domain.Loan", "Loan")
+                        .WithMany("Installments")
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_loan_installments_loans_loan_id");
+
+                    b.Navigation("Loan");
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.LoanRepayment", b =>
+                {
+                    b.HasOne("VillageBank.Api.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_loan_repayments_users_created_by_user_id");
+
+                    b.HasOne("VillageBank.Api.Domain.JournalEntry", "JournalEntry")
+                        .WithMany()
+                        .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_loan_repayments_journal_entries_journal_entry_id");
+
+                    b.HasOne("VillageBank.Api.Domain.Loan", "Loan")
+                        .WithMany()
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_loan_repayments_loans_loan_id");
+
+                    b.Navigation("JournalEntry");
+
+                    b.Navigation("Loan");
+                });
+
             modelBuilder.Entity("VillageBank.Api.Domain.SavingsAccount", b =>
                 {
                     b.HasOne("VillageBank.Api.Domain.Member", "Member")
@@ -512,6 +819,11 @@ namespace VillageBank.Api.Data.Migrations
             modelBuilder.Entity("VillageBank.Api.Domain.JournalEntry", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("VillageBank.Api.Domain.Loan", b =>
+                {
+                    b.Navigation("Installments");
                 });
 
             modelBuilder.Entity("VillageBank.Api.Domain.Member", b =>

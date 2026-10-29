@@ -14,6 +14,9 @@ public class BankDbContext : DbContext
     public DbSet<SavingsAccount> SavingsAccounts => Set<SavingsAccount>();
     public DbSet<SavingsTransaction> SavingsTransactions => Set<SavingsTransaction>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<Loan> Loans => Set<Loan>();
+    public DbSet<LoanInstallment> LoanInstallments => Set<LoanInstallment>();
+    public DbSet<LoanRepayment> LoanRepayments => Set<LoanRepayment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -122,6 +125,91 @@ public class BankDbContext : DbContext
                 t.HasCheckConstraint("ck_savings_transactions_amount_positive", "amount > 0");
                 t.HasCheckConstraint("ck_savings_transactions_type", "type IN ('Deposit','Withdrawal')");
             });
+        });
+
+        modelBuilder.Entity<Loan>(e =>
+        {
+            e.Property(x => x.Principal).HasPrecision(19, 4);
+            e.Property(x => x.MonthlyInterestRatePercent).HasPrecision(7, 4);
+            e.Property(x => x.Purpose).HasMaxLength(200);
+            e.Property(x => x.RejectionReason).HasMaxLength(500);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(x => x.Member)
+                .WithMany()
+                .HasForeignKey(x => x.MemberId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.DisbursementJournalEntry)
+                .WithMany()
+                .HasForeignKey(x => x.DisbursementJournalEntryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.AppliedByUserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.DecidedByUserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.DisbursedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+            // One loan in progress per member, enforced by the database as well as the service.
+            e.HasIndex(x => x.MemberId)
+                .IsUnique()
+                .HasFilter("status NOT IN ('Rejected','Closed')");
+
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_loans_status",
+                    "status IN ('Pending','Approved','Rejected','Active','Closed')");
+                t.HasCheckConstraint(
+                    "ck_loans_terms",
+                    "principal > 0 AND term_months BETWEEN 1 AND 60 AND monthly_interest_rate_percent >= 0");
+            });
+        });
+
+        modelBuilder.Entity<LoanInstallment>(e =>
+        {
+            e.Property(x => x.PrincipalDue).HasPrecision(19, 4);
+            e.Property(x => x.InterestDue).HasPrecision(19, 4);
+            e.Property(x => x.PrincipalPaid).HasPrecision(19, 4);
+            e.Property(x => x.InterestPaid).HasPrecision(19, 4);
+
+            e.HasOne(x => x.Loan)
+                .WithMany(x => x.Installments)
+                .HasForeignKey(x => x.LoanId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(x => new { x.LoanId, x.Number }).IsUnique();
+
+            e.ToTable(t => t.HasCheckConstraint(
+                "ck_loan_installments_amounts",
+                "principal_due >= 0 AND interest_due >= 0 AND principal_paid >= 0 AND interest_paid >= 0 " +
+                "AND principal_paid <= principal_due AND interest_paid <= interest_due"));
+        });
+
+        modelBuilder.Entity<LoanRepayment>(e =>
+        {
+            e.Property(x => x.Amount).HasPrecision(19, 4);
+            e.Property(x => x.PrincipalPart).HasPrecision(19, 4);
+            e.Property(x => x.InterestPart).HasPrecision(19, 4);
+            e.Property(x => x.IdempotencyKey).HasMaxLength(100);
+            e.Property(x => x.Note).HasMaxLength(500);
+
+            e.HasOne(x => x.Loan)
+                .WithMany()
+                .HasForeignKey(x => x.LoanId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.JournalEntry)
+                .WithMany()
+                .HasForeignKey(x => x.JournalEntryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(x => new { x.LoanId, x.IdempotencyKey }).IsUnique();
+
+            e.ToTable(t => t.HasCheckConstraint(
+                "ck_loan_repayments_amounts",
+                "amount > 0 AND principal_part >= 0 AND interest_part >= 0 AND principal_part + interest_part = amount"));
         });
 
         modelBuilder.Entity<User>(e =>
