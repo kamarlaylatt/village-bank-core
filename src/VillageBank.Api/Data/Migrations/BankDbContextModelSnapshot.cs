@@ -166,6 +166,9 @@ namespace VillageBank.Api.Data.Migrations
                     b.HasIndex("CreatedByUserId")
                         .HasDatabaseName("ix_journal_entries_created_by_user_id");
 
+                    b.HasIndex("EntryDate")
+                        .HasDatabaseName("ix_journal_entries_entry_date");
+
                     b.HasIndex("SourceType", "SourceId")
                         .HasDatabaseName("ix_journal_entries_source_type_source_id");
 

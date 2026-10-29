@@ -10,5 +10,6 @@ public static class Roles
     public const string Auditor = nameof(UserRole.Auditor);
 
     public const string Operators = Teller + "," + Manager;
+    public const string Reporters = Manager + "," + Auditor;
     public const string Staff = Teller + "," + Manager + "," + Auditor;
 }

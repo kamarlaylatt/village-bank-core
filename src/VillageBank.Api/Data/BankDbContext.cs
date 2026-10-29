@@ -45,6 +45,7 @@ public class BankDbContext : DbContext
             e.Property(x => x.Description).HasMaxLength(500).IsRequired();
             e.Property(x => x.SourceType).HasMaxLength(30);
             e.HasIndex(x => new { x.SourceType, x.SourceId });
+            e.HasIndex(x => x.EntryDate);
 
             e.HasOne<User>()
                 .WithMany()

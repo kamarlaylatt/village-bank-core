@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Testcontainers.PostgreSql;
 using VillageBank.Api.Data;
 
@@ -29,14 +30,35 @@ public class PostgresFixture : IAsyncLifetime
         await _container.DisposeAsync();
     }
 
-    public BankDbContext CreateDbContext()
+    public BankDbContext CreateDbContext(string? connectionString = null)
     {
         var options = new DbContextOptionsBuilder<BankDbContext>()
-            .UseNpgsql(ConnectionString)
+            .UseNpgsql(connectionString ?? ConnectionString)
             .UseSnakeCaseNamingConvention()
             .Options;
 
         return new BankDbContext(options);
+    }
+
+    // A separate, empty database for tests whose assertions depend on everything in the ledger,
+    // such as report totals, which would otherwise include data written by other tests.
+    public async Task<string> CreateIsolatedDatabaseAsync()
+    {
+        var name = $"isolated_{Guid.NewGuid():N}";
+
+        await using (var connection = new NpgsqlConnection(ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = new NpgsqlCommand($"CREATE DATABASE \"{name}\"", connection);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var isolated = new NpgsqlConnectionStringBuilder(ConnectionString) { Database = name }.ConnectionString;
+
+        await using var db = CreateDbContext(isolated);
+        await db.Database.EnsureCreatedAsync();
+
+        return isolated;
     }
 }
 
