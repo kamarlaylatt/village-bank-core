@@ -8,6 +8,8 @@ public class BankDbContext : DbContext
     public BankDbContext(DbContextOptions<BankDbContext> options) : base(options) { }
 
     public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<JournalLine> JournalLines => Set<JournalLine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,6 +31,35 @@ public class BankDbContext : DbContext
                 new Account { Id = 5, Code = "4000", Name = "Interest Income", Type = AccountType.Income },
                 new Account { Id = 6, Code = "4100", Name = "Penalty Income", Type = AccountType.Income },
                 new Account { Id = 7, Code = "5000", Name = "Interest Expense on Savings", Type = AccountType.Expense });
+        });
+
+        modelBuilder.Entity<JournalEntry>(e =>
+        {
+            e.Property(x => x.Description).HasMaxLength(500).IsRequired();
+            e.Property(x => x.SourceType).HasMaxLength(30);
+            e.HasIndex(x => new { x.SourceType, x.SourceId });
+        });
+
+        modelBuilder.Entity<JournalLine>(e =>
+        {
+            e.Property(x => x.Debit).HasPrecision(19, 4);
+            e.Property(x => x.Credit).HasPrecision(19, 4);
+
+            e.HasOne(x => x.JournalEntry)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.JournalEntryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.Account)
+                .WithMany()
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(x => x.AccountId);
+
+            e.ToTable(t => t.HasCheckConstraint(
+                "ck_journal_lines_one_sided",
+                "debit >= 0 AND credit >= 0 AND ((debit > 0 AND credit = 0) OR (credit > 0 AND debit = 0))"));
         });
     }
 }

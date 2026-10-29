@@ -1,0 +1,53 @@
+using Microsoft.EntityFrameworkCore;
+using VillageBank.Api.Data;
+using VillageBank.Api.Domain;
+
+namespace VillageBank.Api.Services;
+
+public class LedgerService : ILedgerService
+{
+    private readonly BankDbContext _db;
+
+    public LedgerService(BankDbContext db)
+    {
+        _db = db;
+    }
+
+    public async Task<JournalEntry> PostAsync(
+        DateOnly entryDate,
+        string description,
+        IReadOnlyList<LineInput> lines,
+        string? sourceType = null,
+        long? sourceId = null,
+        CancellationToken ct = default)
+    {
+        JournalEntryValidator.Validate(description, lines);
+
+        var accountIds = lines.Select(l => l.AccountId).Distinct().ToList();
+        var activeCount = await _db.Accounts
+            .CountAsync(a => accountIds.Contains(a.Id) && a.IsActive, ct);
+
+        if (activeCount != accountIds.Count)
+            throw new LedgerException("One or more accounts do not exist or are inactive.");
+
+        var entry = new JournalEntry
+        {
+            EntryDate = entryDate,
+            Description = description.Trim(),
+            SourceType = sourceType,
+            SourceId = sourceId,
+            CreatedAt = DateTime.UtcNow,
+            Lines = lines.Select(l => new JournalLine
+            {
+                AccountId = l.AccountId,
+                Debit = l.Debit,
+                Credit = l.Credit
+            }).ToList()
+        };
+
+        _db.JournalEntries.Add(entry);
+        await _db.SaveChangesAsync(ct);
+
+        return entry;
+    }
+}

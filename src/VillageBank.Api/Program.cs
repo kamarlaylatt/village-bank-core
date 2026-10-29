@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using VillageBank.Api.Data;
+using VillageBank.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<BankDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default"))
            .UseSnakeCaseNamingConvention());
+
+builder.Services.AddScoped<ILedgerService, LedgerService>();
 
 var app = builder.Build();
 
