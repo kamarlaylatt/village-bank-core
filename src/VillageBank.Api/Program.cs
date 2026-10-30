@@ -6,7 +6,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using VillageBank.Api.Auth;
+using VillageBank.Api.Cli;
 using VillageBank.Api.Data;
+using VillageBank.Api.Demo;
 using VillageBank.Api.Domain;
 using VillageBank.Api.Middleware;
 using VillageBank.Api.Services;
@@ -53,6 +55,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
+builder.Services.AddHealthChecks().AddDbContextCheck<BankDbContext>("database");
+
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
     .Validate(
@@ -78,6 +82,9 @@ builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddHostedService<SuperAdminSeeder>();
 
+// Demo data is created by the seed-demo command only, never when the API starts.
+builder.Services.AddTransient<DemoDataSeeder>();
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ILedgerService, LedgerService>();
@@ -88,10 +95,14 @@ builder.Services.AddScoped<IReportService, ReportService>();
 
 var app = builder.Build();
 
+// One-off commands (migrate, seed-demo) run and exit without starting the web server.
+if (args.Length > 0 && CliCommands.IsCommand(args[0]))
+    return await CliCommands.RunAsync(app.Services, args[0]);
+
 app.UseExceptionHandler();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
 {
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -106,7 +117,9 @@ app.UseMiddleware<PasswordChangeRequiredMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health").AllowAnonymous();
 
 app.Run();
+return 0;
 
 public partial class Program { }

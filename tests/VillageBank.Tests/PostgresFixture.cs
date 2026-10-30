@@ -44,6 +44,17 @@ public class PostgresFixture : IAsyncLifetime
     // such as report totals, which would otherwise include data written by other tests.
     public async Task<string> CreateIsolatedDatabaseAsync()
     {
+        var isolated = await CreateEmptyDatabaseAsync();
+
+        await using var db = CreateDbContext(isolated);
+        await db.Database.EnsureCreatedAsync();
+
+        return isolated;
+    }
+
+    // A database with no tables at all, for tests that apply the real migrations.
+    public async Task<string> CreateEmptyDatabaseAsync()
+    {
         var name = $"isolated_{Guid.NewGuid():N}";
 
         await using (var connection = new NpgsqlConnection(ConnectionString))
@@ -53,12 +64,7 @@ public class PostgresFixture : IAsyncLifetime
             await command.ExecuteNonQueryAsync();
         }
 
-        var isolated = new NpgsqlConnectionStringBuilder(ConnectionString) { Database = name }.ConnectionString;
-
-        await using var db = CreateDbContext(isolated);
-        await db.Database.EnsureCreatedAsync();
-
-        return isolated;
+        return new NpgsqlConnectionStringBuilder(ConnectionString) { Database = name }.ConnectionString;
     }
 }
 

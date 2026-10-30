@@ -7,6 +7,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    # Published for local tools such as psql. Remove this on a server: the API reaches the
+    # database over the compose network and nothing else needs it.
     ports:
       - "5433:5432"
     volumes:
@@ -16,6 +18,25 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  api:
+    build: .
+    container_name: villagebank-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Jwt__SigningKey: ${Jwt__SigningKey:?Set Jwt__SigningKey in .env}
+      Seed__SuperAdmin__Username: ${Seed__SuperAdmin__Username:?Set Seed__SuperAdmin__Username in .env}
+      Seed__SuperAdmin__Password: ${Seed__SuperAdmin__Password:?Set Seed__SuperAdmin__Password in .env}
+      Seed__Demo__Password: ${Seed__Demo__Password:-}
+      Swagger__Enabled: ${Swagger__Enabled:-false}
+      Cors__AllowedOrigins__0: ${CORS_ORIGIN:-http://localhost:3000}
+    ports:
+      - "8080:8080"
 
 volumes:
   pgdata:
